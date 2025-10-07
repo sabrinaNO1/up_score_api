@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch'; // 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const email = req.query.email;
+  const email = req.query.email as string;
 
   if (!email) {
     return res.status(400).json({ error: 'Missing email parameter' });
@@ -10,12 +9,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const response = await fetch(
-      `https://app.uppromote.com/api/v1/affiliates/find-by-email?email=${email}`,
+      `https://app.uppromote.com/api/v1/affiliates/find-by-email?email=${encodeURIComponent(email)}`,
       {
         headers: {
           'X-Access-Token': 'pk_tBC26ce7v33sxa75O51XPpxYifBUfh5j',
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       }
     );
 
@@ -26,21 +25,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const data = await response.json();
 
     let score = 0;
-    const referrals = data.data?.referrals || [];
-    const bigOrders = referrals.filter(r => r.amount && r.amount >= 200).length;
+    const referrals = data?.data?.referrals || [];
 
-    score += referrals.length * 5;
+    const referralCount = referrals.length;
+    const bigOrders = referrals.filter((r: any) => Number(r?.amount) >= 200).length;
+
+    score += referralCount * 5;
     score += bigOrders * 20;
 
     return res.status(200).json({
       email,
       score,
-      details: {
-        referralCount: referrals.length,
-        bigOrders
-      }
+      details: { referralCount, bigOrders },
     });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Internal error' });
   }
 }
