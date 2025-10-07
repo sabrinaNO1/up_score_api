@@ -20,10 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const data = await response.json()
 
-  // Initialize score
   let score = 0
-
-  // Add logic based on your criteria
   const referrals = data.data?.referrals || []
   const customers = data.data?.customers || []
 
