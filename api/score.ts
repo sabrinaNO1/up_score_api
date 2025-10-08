@@ -9,17 +9,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const response = await fetch(
-      `https://app.uppromote.com/api/v1/affiliates/find-by-email?email=${email}`,
+      `https://aff-api.uppromote.com/api/v2/affiliates?affiliate_email=${email}`,
       {
+        method: 'GET',
         headers: {
-          'X-Access-Token': 'pk_tBC26ce7v33sxa75O51XPpxYifBUfh5j',
+          'Authorization': 'pk_tBC26ce7v33sxa75O51XPpxYifBUfh5j',
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
       }
     );
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    const text = await response.text(); // 先用 text()，防止 JSON 解析出错
+    try {
+      const data = JSON.parse(text);
+      return res.status(200).json(data);
+    } catch {
+      return res.status(500).json({ error: 'Invalid JSON returned', raw: text });
+    }
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
