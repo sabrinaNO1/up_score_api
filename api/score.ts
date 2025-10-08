@@ -8,26 +8,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const response = await fetch(
-      `https://aff-api.uppromote.com/api/v2/affiliates?affiliate_email=${email}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': 'pk_tBC26ce7v33sxa75O51XPpxYifBUfh5j',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const url = `https://aff-api.uppromote.com/api/v2/affiliates?affiliate_email=${email}`;
+    console.log("Fetching:", url);
 
-    const text = await response.text(); // 先用 text()，防止 JSON 解析出错
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'pk_tBC26ce7v33sxa75O51XPpxYifBUfh5j',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const text = await response.text();
+    console.log("Raw response:", text);
+
     try {
       const data = JSON.parse(text);
-      return res.status(200).json(data);
-    } catch {
+      return res.status(200).json({ ok: true, data });
+    } catch (err) {
+      // 如果返回不是 JSON，我们直接把原始内容返回出来看
       return res.status(500).json({ error: 'Invalid JSON returned', raw: text });
     }
+
   } catch (error: any) {
+    console.error("Error:", error.message);
     return res.status(500).json({ error: error.message });
   }
 }
