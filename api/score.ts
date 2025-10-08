@@ -1,14 +1,26 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const API_BASE = 'https://aff-api.uppromote.com/api/v2';
-const API_KEY = process.env.CLIENT_KEY || '你的API_KEY'; // 建议用环境变量
+const API_KEY = process.env.CLIENT_KEY || '你的API_KEY'; // 建议改成环境变量
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // ✅ 设置 CORS，允许 Shopify 页面访问
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // ✅ 提前处理 OPTIONS 预检请求
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const email = (req.query.email as string || '').trim();
-  if (!email) return res.status(400).json({ error: 'Missing email parameter' });
+  if (!email) {
+    return res.status(400).json({ error: 'Missing email parameter' });
+  }
 
   try {
-    // 1) 通过邮箱找联盟客
+    // 1️⃣ 获取联盟客信息
     const affResp = await fetch(`${API_BASE}/affiliates?affiliate_email=${encodeURIComponent(email)}`, {
       headers: {
         Authorization: API_KEY,
@@ -16,16 +28,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Content-Type': 'application/json',
       },
     });
-    const affText = await affResp.text();
-    const affJson = JSON.parse(affText);
 
+    const affJson = await affResp.json();
     const affiliate = Array.isArray(affJson?.data) ? affJson.data[0] : null;
+
     if (!affiliate) {
-      return res.status(404).json({ error: 'Affiliate not found for this email' });
+      return res.status(200).json({
+        ok: true,
+        email,
+        score: 0,
+        message: 'No affiliate found for this email',
+      });
     }
 
-    // 2) 查该联盟客的推荐/订单列表（在文档的 Referral → Get list referrals）
-    // 该接口路径是 /api/v2/referrals，用 affiliate_id 作为查询参数
+    // 2️⃣ 获取推荐数据
     const refResp = await fetch(`${API_BASE}/referrals?affiliate_id=${affiliate.id}`, {
       headers: {
         Authorization: API_KEY,
@@ -33,25 +49,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Content-Type': 'application/json',
       },
     });
-    const refText = await refResp.text();
-    const refJson = JSON.parse(refText);
+
+    const refJson = await refResp.json();
     const referrals = Array.isArray(refJson?.data) ? refJson.data : [];
 
-    // 3) 计算分数（示例：每条推荐 5 分；金额≥200 的订单 +20 分）
+    // 3️⃣ 计算积分
     const referralCount = referrals.length;
     const bigOrders = referrals.filter((r: any) => Number(r.amount) >= 200).length;
-
     const score = referralCount * 5 + bigOrders * 20;
 
+    // ✅ 成功返回
     return res.status(200).json({
       ok: true,
       email,
       affiliate_id: affiliate.id,
       score,
       details: { referralCount, bigOrders },
-      rawAffiliate: affiliate,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Unknown error' });
+    console.error('Error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || 'Internal server error',
+    });
   }
 }
